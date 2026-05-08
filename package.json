@@ -1,0 +1,43 @@
+{
+  "name": "wealthtransformation-emails",
+  "version": "1.0.0",
+  "description": "Wealth Transformation email system — transactional + drips + broadcast on top of SendGrid.",
+  "type": "module",
+  "main": "dist/api/server.js",
+  "scripts": {
+    "api": "tsx watch --env-file=.env src/api/server.ts",
+    "worker": "tsx watch --env-file=.env src/worker/main.ts",
+    "cron": "tsx watch --env-file=.env src/cron/main.ts",
+    "migrate:up": "tsx --env-file=.env src/db/migrate.ts up",
+    "migrate:status": "tsx --env-file=.env src/db/migrate.ts status",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.2",
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "node-cron": "^4.2.1",
+    "pg": "^8.20.0",
+    "pino": "^10.3.1",
+    "viem": "^2.48.11",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.6.2",
+    "@types/node-cron": "^3.0.11",
+    "@types/pg": "^8.20.0",
+    "@vitest/coverage-v8": "^4.1.5",
+    "eslint": "^10.3.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  }
+}
