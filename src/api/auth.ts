@@ -26,8 +26,11 @@ export function verifyHmac(req: Request): boolean {
   if (!Number.isFinite(tsNum)) return false;
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - tsNum) > HMAC_SKEW_SEC) return false;
-  const raw = (req as Request & { rawBody?: Buffer }).rawBody;
-  if (!raw || raw.length === 0) return false;
+  // Allow empty body for GET — sender signs `${ts}.` with no body bytes.
+  // POST/PUT/DELETE must have a body parsed by express.json() so rawBody
+  // is non-empty.
+  const raw = (req as Request & { rawBody?: Buffer }).rawBody ?? Buffer.alloc(0);
+  if (req.method !== "GET" && raw.length === 0) return false;
   const expected = createHmac("sha256", config.internalHmacSecret)
     .update(`${ts}.`)
     .update(raw)

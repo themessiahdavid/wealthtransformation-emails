@@ -279,23 +279,149 @@ export function buildApp() {
   });
 
   // -------- Admin --------
-  app.get("/v1/admin/dashboard", requireAdmin, async (_req, res) => {
+  // For v1, admin endpoints accept HMAC instead of JWT — the WT app's
+  // server-side renders admin pages by calling these from the Next.js server,
+  // which has the same internal HMAC secret. SIWE auth is the gate at the
+  // browser level (page only renders if the connected wallet is in the
+  // admin allowlist). This is acceptable for localhost / password-protected
+  // dev only — production should add the SIWE exchange path.
+
+  app.get("/v1/admin/dashboard", requireHmac, async (_req, res) => {
     const r = await getPool().query<{
       total_subscribers: number;
+      confirmed_subscribers: number;
+      unsubscribed: number;
       sent_24h: number;
+      sent_7d: number;
       bounced_24h: number;
       open_rate_24h: number | null;
+      click_rate_24h: number | null;
+      queue_depth: number;
     }>(
       `SELECT
          (SELECT COUNT(*)::int FROM wt_email_subscribers WHERE unsubscribed_at IS NULL AND suppressed_at IS NULL) AS total_subscribers,
+         (SELECT COUNT(*)::int FROM wt_email_subscribers WHERE email_confirmed_at IS NOT NULL AND unsubscribed_at IS NULL) AS confirmed_subscribers,
+         (SELECT COUNT(*)::int FROM wt_email_subscribers WHERE unsubscribed_at IS NOT NULL) AS unsubscribed,
          (SELECT COUNT(*)::int FROM wt_email_outbox WHERE sent_at > NOW() - INTERVAL '24 hours') AS sent_24h,
+         (SELECT COUNT(*)::int FROM wt_email_outbox WHERE sent_at > NOW() - INTERVAL '7 days') AS sent_7d,
          (SELECT COUNT(*)::int FROM wt_email_outbox WHERE bounced_at > NOW() - INTERVAL '24 hours') AS bounced_24h,
          (SELECT (COUNT(*) FILTER (WHERE opened_at IS NOT NULL))::float
                  / NULLIF(COUNT(*) FILTER (WHERE sent_at > NOW() - INTERVAL '24 hours'), 0)
             FROM wt_email_outbox
-           WHERE sent_at > NOW() - INTERVAL '24 hours') AS open_rate_24h`,
+           WHERE sent_at > NOW() - INTERVAL '24 hours') AS open_rate_24h,
+         (SELECT (COUNT(*) FILTER (WHERE clicked_at IS NOT NULL))::float
+                 / NULLIF(COUNT(*) FILTER (WHERE sent_at > NOW() - INTERVAL '24 hours'), 0)
+            FROM wt_email_outbox
+           WHERE sent_at > NOW() - INTERVAL '24 hours') AS click_rate_24h,
+         (SELECT COUNT(*)::int FROM wt_email_outbox WHERE status = 'queued') AS queue_depth`,
     );
     res.json(r.rows[0]);
+  });
+
+  app.get("/v1/admin/sends", requireHmac, async (req, res) => {
+    const limit = Math.min(500, Number.parseInt(String(req.query.limit ?? "100"), 10) || 100);
+    const r = await getPool().query(
+      `SELECT id, email_type, recipient_email, subject, status, attempts,
+              created_at, sent_at, opened_at, clicked_at, bounced_at,
+              failed_reason, sendgrid_message_id
+         FROM wt_email_outbox
+        ORDER BY created_at DESC
+        LIMIT $1`,
+      [limit],
+    );
+    res.json({ rows: r.rows });
+  });
+
+  app.get("/v1/admin/subscribers", requireHmac, async (req, res) => {
+    const limit = Math.min(500, Number.parseInt(String(req.query.limit ?? "100"), 10) || 100);
+    const r = await getPool().query(
+      `SELECT id, wallet_address, email, display_name, captured_at, email_confirmed_at,
+              unsubscribed_at, suppressed_at, owns_tiers, engagement_tier, engagement_score
+         FROM wt_email_subscribers
+        ORDER BY captured_at DESC
+        LIMIT $1`,
+      [limit],
+    );
+    res.json({ rows: r.rows });
+  });
+
+  app.get("/v1/admin/templates", requireHmac, async (_req, res) => {
+    const r = await getPool().query(
+      `SELECT email_type, version, is_active, subject, sendgrid_template_id, created_at
+         FROM wt_email_templates
+        ORDER BY email_type, version DESC`,
+    );
+    res.json({ rows: r.rows });
+  });
+
+  app.get("/v1/admin/settings", requireHmac, async (_req, res) => {
+    const r = await getPool().query(
+      `SELECT key, value, description, updated_at FROM wt_email_settings ORDER BY key`,
+    );
+    res.json({ rows: r.rows });
+  });
+
+  const SettingUpdateSchema = z.object({
+    key: z.string(),
+    value: z.unknown(),
+    actorWallet: z.string().optional(),
+  });
+  app.post("/v1/admin/settings", requireHmac, async (req, res) => {
+    const parsed = SettingUpdateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid_body" });
+    await getPool().query(
+      `INSERT INTO wt_email_settings (key, value, description, updated_by_wallet)
+       VALUES ($1, $2::jsonb, '', $3)
+       ON CONFLICT (key) DO UPDATE SET
+         value = EXCLUDED.value,
+         updated_at = NOW(),
+         updated_by_wallet = EXCLUDED.updated_by_wallet`,
+      [parsed.data.key, JSON.stringify(parsed.data.value), parsed.data.actorWallet ?? null],
+    );
+    await getPool().query(
+      `INSERT INTO wt_email_admin_log (actor_wallet, action, target_type, target_id, payload)
+       VALUES ($1, 'setting_update', 'setting', $2, $3::jsonb)`,
+      [parsed.data.actorWallet ?? "system", parsed.data.key, JSON.stringify({ value: parsed.data.value })],
+    );
+    res.json({ ok: true });
+  });
+
+  const BroadcastSchema = z.object({
+    subject: z.string().min(1),
+    htmlBody: z.string().min(1),
+    textBody: z.string().optional(),
+    segment: z.record(z.string(), z.unknown()).default({}),
+    scheduledFor: z.string().optional(),
+    actorWallet: z.string().optional(),
+  });
+  app.post("/v1/admin/broadcast", requireHmac, async (req, res) => {
+    const parsed = BroadcastSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid_body", issues: parsed.error.issues });
+    const ins = await getPool().query<{ id: string }>(
+      `INSERT INTO wt_email_broadcasts (subject, html_body, text_body, segment, status, scheduled_for, created_by_wallet)
+       VALUES ($1, $2, $3, $4::jsonb, 'draft', $5, $6)
+       RETURNING id`,
+      [
+        parsed.data.subject,
+        parsed.data.htmlBody,
+        parsed.data.textBody ?? null,
+        JSON.stringify(parsed.data.segment),
+        parsed.data.scheduledFor ? new Date(parsed.data.scheduledFor) : null,
+        parsed.data.actorWallet ?? "admin",
+      ],
+    );
+    res.json({ id: ins.rows[0].id, status: "draft" });
+  });
+
+  app.get("/v1/admin/broadcasts", requireHmac, async (_req, res) => {
+    const r = await getPool().query(
+      `SELECT id, subject, status, scheduled_for, started_at, completed_at,
+              total_recipients, sent_count, opened_count, clicked_count, bounced_count,
+              created_by_wallet, created_at
+         FROM wt_email_broadcasts
+        ORDER BY created_at DESC LIMIT 100`,
+    );
+    res.json({ rows: r.rows });
   });
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
