@@ -33,6 +33,7 @@ import { issueToken, verifyToken } from "./preference-token.js";
 import { processPurchasedEvent } from "../producers/purchase.js";
 import { upsertSubscriber } from "../subscribers/upsert.js";
 import { applyEvent } from "../scoring/engagement.js";
+import { enqueue } from "../email/outbox.js";
 
 export function buildApp() {
   const app = express();
@@ -168,7 +169,26 @@ export function buildApp() {
       displayName: parsed.data.displayName ?? null,
       source: "capture_form",
     });
-    res.json({ subscriberId: r.subscriberId, isNew: r.isNew });
+    // For new captures (or re-captures of unconfirmed subscribers), enqueue the
+    // opt-in confirmation. Idempotent — duplicate enqueue is silent no-op.
+    const confirmToken = issueToken(r.subscriberId);
+    const confirmUrl = `${config.publicBaseUrl}/email-confirm?token=${encodeURIComponent(confirmToken)}`;
+    await enqueue({
+      emailType: "opt_in_confirmation",
+      templateId: "opt_in_confirmation_v1",
+      subscriberId: r.subscriberId,
+      recipientEmail: parsed.data.email,
+      recipientWallet: parsed.data.walletAddress.toLowerCase(),
+      subject: "Confirm your email — Wealth Transformation",
+      vars: {
+        firstName: parsed.data.displayName ?? "",
+        confirmUrl,
+      },
+      idempotencyKey: `optin-${r.subscriberId}`,
+      triggeredBy: "capture_api",
+      context: { source: "capture_form", refCode: parsed.data.refCode ?? null },
+    });
+    res.json({ subscriberId: r.subscriberId, isNew: r.isNew, optInQueued: true });
   });
 
   app.post("/v1/internal/purchase-event", requireHmac, async (req, res) => {
