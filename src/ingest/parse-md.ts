@@ -126,17 +126,33 @@ function extractFields(section: string): FieldMap {
     curValueLines = [];
   };
 
+  // Sort FIELD_LABELS by descending length so a line starting with
+  // "PRIMARY CTA URL:" matches the longer "PRIMARY CTA URL" label, not the
+  // shorter "PRIMARY CTA" prefix.
+  const labels = [...FIELD_LABELS].sort((a, b) => b.length - a.length);
+
   for (const line of lines) {
-    // Match "LABEL:" or "LABEL (qualifier):" at the start of a line.
-    const m = line.match(/^([A-Z][A-Z .\-/]*[A-Z])(?:\s*\([^)]*\))?\s*:\s*(.*)$/);
-    if (m && FIELD_LABELS.some((lbl) => m[1].startsWith(lbl) || lbl.startsWith(m[1]))) {
+    // Match a known label at the start of a line. Build patterns from the
+    // labels list so we don't have to fight regex character-class subtleties
+    // (P.S. ending with . was breaking the previous all-caps regex).
+    let matchedLabel: string | null = null;
+    let matchedValue = "";
+    for (const lbl of labels) {
+      // Allow optional parenthetical qualifier between label and colon:
+      //   PRIMARY CTA (button copy, ≤30 chars): value
+      const escaped = lbl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`^${escaped}(?:\\s*\\([^)]*\\))?\\s*:\\s*(.*)$`);
+      const m = line.match(re);
+      if (m) {
+        matchedLabel = lbl;
+        matchedValue = m[1];
+        break;
+      }
+    }
+    if (matchedLabel) {
       flush();
-      // Find the canonical label that this matches.
-      const canonical = FIELD_LABELS.find(
-        (lbl) => m[1] === lbl || m[1].startsWith(lbl) || lbl.startsWith(m[1]),
-      );
-      curLabel = canonical ?? m[1];
-      curValueLines = [m[2]];
+      curLabel = matchedLabel;
+      curValueLines = [matchedValue];
     } else if (curLabel) {
       curValueLines.push(line);
     }

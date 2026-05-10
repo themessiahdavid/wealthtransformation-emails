@@ -92,13 +92,24 @@ function goldRuleHtml(): string {
   `;
 }
 
+// Brand assets hosted on a public, durable URL. We use GitHub raw URLs against
+// the wealthtransformation-app public/brand/ folder — works in every email
+// client, no separate CDN required, and updates when we push a new logo to
+// main.
+const ASSETS_BASE =
+  "https://raw.githubusercontent.com/themessiahdavid/wealthtransformation-app/main/public/brand";
+
 function headerHtml(): string {
   return `
     <tr>
-      <td bgcolor="${T.bg}" style="background:${T.bg};padding:32px 24px 24px;text-align:center;">
-        <div style="font:600 11px/1 'Trajan Pro','Cormorant Garamond',Georgia,serif;letter-spacing:0.32em;text-transform:uppercase;color:${T.gold};">Wealth</div>
-        <div style="font:400 11px/1 'Trajan Pro','Cormorant Garamond',Georgia,serif;letter-spacing:0.32em;text-transform:uppercase;color:${T.text};opacity:.8;margin-top:6px;">Transformation</div>
-        <div style="height:1px;width:48px;background:${T.gold};margin:18px auto 0;"></div>
+      <td bgcolor="${T.bg}" style="background:${T.bg};padding:36px 24px 28px;text-align:center;">
+        <a href="https://wealthtransformation.com" style="text-decoration:none;display:inline-block;">
+          <img src="${ASSETS_BASE}/logos/horizontal-on-black.png"
+               alt="Wealth Transformation"
+               width="220"
+               style="display:block;margin:0 auto;width:220px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;" />
+        </a>
+        <div style="height:1px;width:48px;background:${T.gold};margin:22px auto 0;line-height:1px;font-size:1px;">&nbsp;</div>
       </td>
     </tr>
   `;
@@ -224,7 +235,7 @@ export function renderEmail(
     ctaHtml = buttonHtml(email.primaryCtaText, email.primaryCtaUrl);
   }
 
-  let inner = `
+  const innerRaw = `
     <tr>
       <td bgcolor="${T.cream}" style="background:${T.cream};padding:48px 40px 24px;">
         ${bodyHtml}
@@ -235,19 +246,13 @@ export function renderEmail(
     </tr>
   `;
 
-  // Run preview substitution if asked, otherwise leave Handlebars in place
-  // for SendGrid to substitute at send time.
-  if (previewMode) {
-    inner = previewSubstitute(inner);
-  }
-
   const subject = previewMode ? previewSubstitute(email.subject) : email.subject;
   const preheader = previewMode ? previewSubstitute(email.preheader ?? "") : email.preheader ?? "";
 
   // Hidden preheader hack — Gmail/Apple Mail show this as the snippet.
   const preheaderHtml = `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:${T.cream};">${preheader}</div>`;
 
-  return `<!doctype html>
+  let html = `<!doctype html>
 <html lang="en" style="margin:0;padding:0;">
 <head>
 <meta charset="utf-8">
@@ -264,7 +269,7 @@ ${preheaderHtml}
     <td align="center" style="padding:24px 16px;">
       <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width:600px;width:100%;background:${T.cream};border:1px solid ${T.goldDim};">
         ${headerHtml()}
-        ${inner}
+        ${innerRaw}
         ${footerHtml(opts)}
       </table>
     </td>
@@ -272,6 +277,16 @@ ${preheaderHtml}
 </table>
 </body>
 </html>`;
+
+  // Run preview substitution across the WHOLE document (header, body, footer)
+  // so {{preferenceCenterUrl}} / {{unsubscribeUrl}} / {{pauseUrl}} in the
+  // footer are demoed too. At runtime SendGrid substitutes everything at send
+  // time so this preview pass only fires when previewMode=true.
+  if (previewMode) {
+    html = previewSubstitute(html);
+  }
+
+  return html;
 }
 
 // Convenience: render a plain-text version too. SendGrid serves both.
