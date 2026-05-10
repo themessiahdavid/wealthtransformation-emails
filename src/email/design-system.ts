@@ -92,12 +92,14 @@ function goldRuleHtml(): string {
   `;
 }
 
-// Brand assets hosted on a public, durable URL. We use GitHub raw URLs against
-// the wealthtransformation-app public/brand/ folder — works in every email
-// client, no separate CDN required, and updates when we push a new logo to
-// main.
+// Brand assets hosted on a public-read S3 bucket. Persistent, HTTPS,
+// content-type set to image/png with 24h cache headers. Updated by:
+//   aws s3 sync ~/wealthtransformation-app/public/brand/logos \
+//     s3://wt-brand-assets-534312620594/brand/logos
+// (Picked S3 over GitHub raw URLs because the wt-app repo is private and
+// raw.githubusercontent.com 404s without an auth token for private repos.)
 const ASSETS_BASE =
-  "https://raw.githubusercontent.com/themessiahdavid/wealthtransformation-app/main/public/brand";
+  "https://wt-brand-assets-534312620594.s3.amazonaws.com/brand";
 
 function headerHtml(): string {
   return `
