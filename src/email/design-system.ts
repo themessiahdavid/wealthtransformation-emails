@@ -108,8 +108,8 @@ function headerHtml(): string {
         <a href="https://wealthtransformation.com" style="text-decoration:none;display:inline-block;">
           <img src="${ASSETS_BASE}/logos/horizontal-on-black.png"
                alt="Wealth Transformation"
-               width="220"
-               style="display:block;margin:0 auto;width:220px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;" />
+               width="264"
+               style="display:block;margin:0 auto;width:264px;max-width:72%;height:auto;border:0;outline:none;text-decoration:none;" />
         </a>
         <div style="height:1px;width:48px;background:${T.gold};margin:22px auto 0;line-height:1px;font-size:1px;">&nbsp;</div>
       </td>
