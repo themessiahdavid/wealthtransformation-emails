@@ -13,6 +13,7 @@ import { SkipWalker } from "../chain/skip-walker.js";
 import { lookup } from "../iat/lookup.js";
 import { upsertSubscriber, findByWallet } from "../subscribers/upsert.js";
 import { config } from "../config.js";
+import { buildLostCommissionActionBlock } from "../email/design-system.js";
 
 // Slot-in paragraphs are versioned per (kind, tier) and stored in
 // wt_email_settings as a single JSONB blob (populated by the ingest CLI).
@@ -237,9 +238,17 @@ export async function processPurchasedEvent(
           activateUrl: `${config.publicBaseUrl}/tier/${event.tier}`,
           basescanUrl: basescanTxUrl(event.txHash),
           reason: skip.reason,
-          // Per-tier slot-in CTA paragraph rendered via {{{ctaParagraph}}}
-          // in the lost_commission wrapper template.
-          ctaParagraph: await getSlotIn("lost_commission_cta", event.tier),
+          // ctaParagraph for the lost_commission wrapper is the per-tier
+          // narrative from Opus + a buildLostCommissionActionBlock() chunk
+          // that adds explicit 3-step activation instructions and a
+          // prominent "Activate {tierName} → $X" button. The slot-in
+          // template uses {{ctaNarrative}} as the variable for the
+          // narrative — so we substitute it directly here so the producer
+          // hands SendGrid a self-contained HTML blob.
+          ctaParagraph: buildLostCommissionActionBlock(event.tier).replace(
+            "{{ctaNarrative}}",
+            await getSlotIn("lost_commission_cta", event.tier),
+          ),
         },
         idempotencyKey: `${idemBase}-lost-${skip.address}`,
         triggeredBy: "indexer_event",

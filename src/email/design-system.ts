@@ -93,6 +93,48 @@ function goldRuleHtml(): string {
   `;
 }
 
+// Lost-commission action block — rendered inside the {{{ctaParagraph}}} slot
+// of the lost_commission wrapper. Prepends Opus's per-tier narrative with a
+// prominent gold-bordered "Activate" button and an explicit 3-step "how to
+// activate" list, so the recipient never has to figure out what to click.
+//
+// Returns SendGrid-Handlebars-friendly HTML: tier-specific copy when called
+// at producer-time, no further substitution needed.
+export function buildLostCommissionActionBlock(targetTier: number): string {
+  const t = tierMeta(targetTier);
+  if (!t) return "";
+  const activateUrl = `${config.publicBaseUrl}/tier/${targetTier}`;
+
+  return `
+    <div style="margin:1.4em 0;font:400 16px/1.65 'Iowan Old Style',Georgia,serif;color:${T.ink};">
+      <p style="margin:0 0 1.2em;">{{ctaNarrative}}</p>
+    </div>
+
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:1.6em auto;width:100%;max-width:520px;">
+      <tr>
+        <td bgcolor="${T.creamSoft}" style="background:${T.creamSoft};border:1px solid ${T.gold};border-radius:4px;padding:22px 24px;">
+          <div style="font:600 10px/1 'Trajan Pro','Cormorant Garamond',Georgia,serif;letter-spacing:0.22em;text-transform:uppercase;color:${T.goldDim};">How to activate &mdash; 60 seconds</div>
+          <ol style="margin:14px 0 18px;padding-left:22px;font:400 14px/1.55 'Iowan Old Style',Georgia,serif;color:${T.ink};">
+            <li style="margin-bottom:6px;">Click the button below.</li>
+            <li style="margin-bottom:6px;">Connect any EVM wallet (MetaMask, Coinbase, Rainbow, Phantom). One-click EIP-6963 detection.</li>
+            <li>Approve <strong>$${t.totalUsd} USDC</strong> on Base and confirm. Settles in seconds. The product hits your account on the same on-chain transaction that pays your sponsor.</li>
+          </ol>
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto;">
+            <tr>
+              <td align="center" bgcolor="${T.bg}" style="border-radius:4px;border:1px solid ${T.gold};">
+                <a href="${activateUrl}" style="display:inline-block;padding:14px 30px;font:600 12px/1 'Trajan Pro','Cormorant Garamond',Georgia,serif;letter-spacing:0.18em;text-transform:uppercase;color:${T.gold};text-decoration:none;">Activate ${t.productName} &rarr; $${t.totalUsd}</a>
+              </td>
+            </tr>
+          </table>
+          <p style="margin:14px 0 0;font:400 12px/1.5 Georgia,serif;color:${T.ink};opacity:.7;text-align:center;">
+            The link goes to <a href="${activateUrl}" style="color:${T.goldDim};">wealthtransformation.com/tier/${targetTier}</a> &mdash; the same page any of your referrals would see.
+          </p>
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
 // Cream "lightbox" panel that sits beneath every CTA selling a tier. CODE-
 // compliant copy: states the mechanism (100% on-chain commissions), the
 // concrete benefit (one sale = product price back instantly), and the
