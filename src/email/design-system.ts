@@ -282,20 +282,39 @@ export function renderEmail(
   previewMode = true,
 ): string {
   // Wrappers (earned_commission, lost_commission) accept slot-in paragraphs
-  // for the tier the recipient just lost/earned on. For preview we inject T1.
+  // for the tier the recipient just lost/earned on. We DO NOT substitute the
+  // slot-in here at upload time — that would bake one tier's slot-in into the
+  // SendGrid template permanently. Instead the producer passes
+  // {{{ctaParagraph}}} / {{{celebrationParagraph}}} as runtime vars so
+  // SendGrid substitutes the correct per-tier content per send.
+  //
+  // Preview-only exception: when previewMode=true and the email is a wrapper,
+  // inject T1's slot-in so the dist-preview HTML demo isn't a sea of
+  // unsubstituted Handlebars literals.
   let body = email.body;
-
-  if (email.emailType === "earned_commission" || email.emailType === "lost_commission") {
-    const tier = 1; // preview tier
+  if (
+    previewMode &&
+    (email.emailType === "earned_commission" || email.emailType === "lost_commission")
+  ) {
+    const tier = 1;
     const kind: SlotInBlock["kind"] =
       email.emailType === "earned_commission"
         ? "earned_commission_celebration"
         : "lost_commission_cta";
     const slotIn = findSlotIn(slotIns, kind, tier);
     if (slotIn) {
+      // For preview, also inject the tier-specific action block so the demo
+      // looks like the real send.
+      const previewBlock =
+        email.emailType === "lost_commission"
+          ? buildLostCommissionActionBlock(tier).replace(
+              "{{ctaNarrative}}",
+              slotIn.paragraphHtml,
+            )
+          : slotIn.paragraphHtml;
       body = body
         .replace(/\{\{\{\s*celebrationParagraph\s*\}\}\}/g, slotIn.paragraphHtml)
-        .replace(/\{\{\{\s*ctaParagraph\s*\}\}\}/g, slotIn.paragraphHtml);
+        .replace(/\{\{\{\s*ctaParagraph\s*\}\}\}/g, previewBlock);
     }
   }
 
