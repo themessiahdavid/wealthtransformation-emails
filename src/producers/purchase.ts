@@ -179,7 +179,7 @@ export async function processPurchasedEvent(
         subscriberId: earner.subscriberId,
         recipientEmail: earner.email,
         recipientWallet: finalRecipient,
-        subject: "You just earned ${{amount}} on Wealth Transformation",
+        subject: "+${{amount}} from {{buyerName}}.",
         vars: {
           firstName: earner.displayName,
           amount: productPriceUsd,
@@ -227,7 +227,7 @@ export async function processPurchasedEvent(
         recipientEmail: skipped.email,
         recipientWallet: skip.address,
         subject:
-          "{{buyerName}} just bought {{tierName}} — you lost a ${{amount}} commission",
+          "${{amount}} walked past your wallet.",
         vars: {
           firstName: skipped.displayName,
           amount: productPriceUsd,
@@ -274,7 +274,7 @@ export async function processPurchasedEvent(
         subscriberId: passer.subscriberId,
         recipientEmail: passer.email,
         recipientWallet: skip.address,
-        subject: "Your every-3rd just powerlined — make one more sale to keep the next",
+        subject: "Sale 3. Counter rolled. Next stays.",
         vars: {
           firstName: passer.displayName,
           amount: productPriceUsd,
@@ -312,7 +312,7 @@ export async function processPurchasedEvent(
           subscriberId: sponsor.subscriberId,
           recipientEmail: sponsor.email,
           recipientWallet: sponsorAddr,
-          subject: "{{buyerName}} just signed up under you on Wealth Transformation",
+          subject: "{{buyerName}} just signed up under you.",
           vars: {
             firstName: sponsor.displayName,
             buyerName: buyer.displayName,

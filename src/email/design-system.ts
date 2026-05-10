@@ -104,6 +104,8 @@ export function buildLostCommissionActionBlock(targetTier: number): string {
   const t = tierMeta(targetTier);
   if (!t) return "";
   const activateUrl = `${config.publicBaseUrl}/tier/${targetTier}`;
+  const totalFmt = t.totalUsd.toFixed(2).replace(/\.00$/, ""); // "$3.30" not "$3.3", "$33" not "$33.00"
+  const totalDisplay = `$${totalFmt}`;
 
   return `
     <div style="margin:1.4em 0;font:400 16px/1.65 'Iowan Old Style',Georgia,serif;color:${T.ink};">
@@ -117,12 +119,12 @@ export function buildLostCommissionActionBlock(targetTier: number): string {
           <ol style="margin:14px 0 18px;padding-left:22px;font:400 14px/1.55 'Iowan Old Style',Georgia,serif;color:${T.ink};">
             <li style="margin-bottom:6px;">Click the button below.</li>
             <li style="margin-bottom:6px;">Connect any EVM wallet (MetaMask, Coinbase, Rainbow, Phantom). One-click EIP-6963 detection.</li>
-            <li>Approve <strong>$${t.totalUsd} USDC</strong> on Base and confirm. Settles in seconds. The product hits your account on the same on-chain transaction that pays your sponsor.</li>
+            <li>Approve <strong>${totalDisplay} USDC</strong> on Base and confirm. Settles in seconds. The product hits your account on the same on-chain transaction that pays your sponsor.</li>
           </ol>
           <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto;">
             <tr>
               <td align="center" bgcolor="${T.bg}" style="border-radius:4px;border:1px solid ${T.gold};">
-                <a href="${activateUrl}" style="display:inline-block;padding:14px 30px;font:600 12px/1 'Trajan Pro','Cormorant Garamond',Georgia,serif;letter-spacing:0.18em;text-transform:uppercase;color:${T.gold};text-decoration:none;">Activate ${t.productName} &rarr; $${t.totalUsd}</a>
+                <a href="${activateUrl}" style="display:inline-block;padding:14px 30px;font:600 12px/1 'Trajan Pro','Cormorant Garamond',Georgia,serif;letter-spacing:0.18em;text-transform:uppercase;color:${T.gold};text-decoration:none;">Activate Tier ${targetTier} &rarr; ${totalDisplay}</a>
               </td>
             </tr>
           </table>

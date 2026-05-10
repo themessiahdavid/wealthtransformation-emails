@@ -442,7 +442,7 @@ LOST-COMMISSION CTA — Product: The Live Recruiting Formula ($90)
 PARAGRAPH:
 Someone in your line just bought The Live Recruiting Formula through your code, and the ninety-dollar commission walked past your wallet to whoever above you owns this rung. The contract requires ownership at every tier — without it, every sale in your tree compresses up. The seventy-five-minute event. The forty-five-slide deck. The seven-day room-fill. The group frame-control toolkit. At ninety dollars per sale, the compression compounds faster than the prior five rungs combined — and rung-six owners are the ones most likely to ascend to Producer Transformation, where the single-sale walk-pasts run into hundreds. The next sale runs the same way unless you own it.
 
-CTA BUTTON: Activate The Live Recruiting Formula
+CTA BUTTON: Activate Tier 6 →
 CTA URL: {{activateUrl}}
 ===
 

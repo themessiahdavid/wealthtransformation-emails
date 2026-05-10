@@ -325,7 +325,7 @@ The math isn't theoretical. It's literally what the chain has executed for the l
 
 I'm not telling you to click. I'm telling you what I'm watching, because the most useful thing I can do for an operator at your stage is name what's actually in the room.
 
-What's in the room: a six-hundred-and-sixty-dollar activation that turns the next Team Transformation sale in your tree into a six-hundred-dollar commission to <em>your</em> wallet, instead of a six-hundred-dollar commission past your wallet. The smart contract executes the moment you click. The course unlocks inside the iamtransformation tribe. The Multiplier's Scorecard is on the other side of the click — workable on a team of zero or three hundred.
+What's in the room: a six-hundred-and-sixty-dollar activation that turns the next Team Transformation sale in your tree into a six-hundred-dollar commission to <em>your</em> wallet, instead of a six-hundred-dollar commission past your wallet. The smart contract executes the moment you click. The course unlocks the moment the contract confirms. The Multiplier's Scorecard is on the other side of the click — workable on a team of zero or three hundred.
 
 If you've decided this isn't the rung for you right now, that's a clear-eyed decision and I'll respect it. The math runs whether you decide or not. Decide one way and the math stops running against you. Decide the other way and own the trade.
 
@@ -378,7 +378,7 @@ The decision belongs to you.
 — David
 
 PRIMARY CTA (button copy, ≤30 chars): Reply to keep me in →
-PRIMARY CTA URL: mailto:david@wealthtransformation.com
+PRIMARY CTA URL: mailto:support@wealthtransformation.com
 
 P.S.: If you've watched the Tom story and recognized yourself in young David — and sat with the eleven o'clock grandmother call in your own week — but the math from email two felt premature because your tree hasn't lifted yet — that's a real timing issue, and waiting until your tree lifts is a defensible choice. The activation link is still alive. The contract doesn't expire. The same finality that means a buyer's purchase is final today is what makes the commission reliable on the seller side tomorrow — including for the version of you who comes back when the timing's right. <a href="{{activateUrl}}">Activate Team Transformation when the tree turns →</a>
 

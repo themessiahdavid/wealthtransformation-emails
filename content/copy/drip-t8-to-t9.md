@@ -356,7 +356,7 @@ The same finality that means your purchase is final the day you make it is what 
 Most operators in this profession will go their whole careers without naming the structure that separates the back of the room from the stage. You don't have to. The structure is named. <strong>Authority, not amplification.</strong> The build sequence is taught. The course is here when you're ready.
 
 PRIMARY CTA (button copy, ≤30 chars): Reply with "continue"
-PRIMARY CTA URL: mailto:david@iamtransformation.com?subject=continue
+PRIMARY CTA URL: mailto:support@wealthtransformation.com?subject=continue
 
 P.S.: If reading the back-of-the-room story two weeks ago made you sit still for longer than you usually do — that wasn't a coincidence and you already know it. <em>If that's still on you, reply with "continue" and I'll come back next week. If it's not, the silence is a clean answer and I'll honor it.</em> Either is fine. Both are respected.
 

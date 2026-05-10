@@ -84,9 +84,11 @@ export async function tickEnroll(): Promise<{ enrolled: number }> {
 }
 
 export async function tickFire(): Promise<{ fired: number; cancelled: number }> {
-  const due = await getPool().query<DripRow & { wallet_address: string; email: string }>(
+  const due = await getPool().query<
+    DripRow & { wallet_address: string; email: string; display_name: string | null }
+  >(
     `SELECT d.id, d.subscriber_id, d.drip_type, d.current_step, d.total_steps,
-            d.cadence_multiplier, s.wallet_address, s.email
+            d.cadence_multiplier, s.wallet_address, s.email, s.display_name
        FROM wt_email_drip_state d
        JOIN wt_email_subscribers s ON s.id = d.subscriber_id
       WHERE d.next_step_due_at <= NOW()
@@ -148,7 +150,11 @@ export async function tickFire(): Promise<{ fired: number; cancelled: number }> 
         ? `https://basescan.org/address/${row.wallet_address}`
         : `https://sepolia.basescan.org/address/${row.wallet_address}`;
     const vars = {
-      firstName: "", // wt_email_subscribers.display_name; query separately if needed
+      // First-name discipline: prefer display_name from the subscriber row;
+      // fall back to a friendly default so emails never read " — " with an
+      // empty name slot. If display_name is set later, the next drip step
+      // picks it up automatically.
+      firstName: row.display_name?.split(" ")[0] ?? "Friend",
       activateUrl: targetTier ? activateUrlForTier(targetTier) : config.publicBaseUrl,
       walletShort: `${row.wallet_address.slice(0, 6)}…${row.wallet_address.slice(-4)}`,
       basescanWalletUrl,
@@ -162,6 +168,14 @@ export async function tickFire(): Promise<{ fired: number; cancelled: number }> 
       tierAdminFee: tInfo?.adminFeeUsd ?? "",
       currentTier: targetTier ? targetTier - 1 : "",
       nextTier: targetTier ?? "",
+      // downlineSize / lostAmountThisQuarter / downlineDeepBuyers stay
+      // empty/zero until on-chain wallet data is wired in (TODO via
+      // SkipWalker / IAT lookup). Drip steps that branch on them gracefully
+      // fall to the "no compression yet" message via {{#if}} fallbacks
+      // until those numbers go live.
+      downlineSize: 0,
+      downlineDeepBuyers: 0,
+      lostAmountThisQuarter: 0,
       dripType: row.drip_type,
       step: row.current_step,
     };

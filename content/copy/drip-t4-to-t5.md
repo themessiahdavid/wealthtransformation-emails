@@ -450,7 +450,7 @@ LOST-COMMISSION CTA — Product: The Omnipresence Engine ($60)
 PARAGRAPH:
 Someone in your line just bought The Omnipresence Engine through your code, and the sixty-dollar commission walked past your wallet to whoever above you owns this rung. The contract requires ownership at every tier — without it, every sale in your tree compresses up. The strategy layer. The thirty-day persuasion arc. The ten-format repurposing matrix. The deployment board. At sixty dollars per sale, the compression compounds faster than the prior four rungs combined — and rung-five owners are the ones in your tree most likely to ascend to rungs six through nine, where the largest compressions live. The next sale of this rung in your tree runs the same way unless you own it.
 
-CTA BUTTON: Activate The Omnipresence Engine
+CTA BUTTON: Activate Tier 5 →
 CTA URL: {{activateUrl}}
 ===
 
