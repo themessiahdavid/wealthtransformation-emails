@@ -78,9 +78,20 @@ async function createVersion(
   const html = renderEmail(email, slotIns, {}, false);
   const text = renderEmailText(email, false);
 
-  // Bump version: count existing + 1.
+  // Prune old versions before creating a new one — SendGrid caps at 300 total
+  // dynamic-template versions per account. Keep only the currently-active
+  // version, delete the rest, then add the new one.
   const detail = await sgFetch<SgTemplateListItem>(`/templates/${templateId}`);
-  const nextVersion = (detail.versions?.length ?? 0) + 1;
+  const versions = detail.versions ?? [];
+  for (const v of versions) {
+    if (v.active === 1) continue;
+    try {
+      await sgFetch(`/templates/${templateId}/versions/${v.id}`, { method: "DELETE" });
+    } catch {
+      // ignore — best-effort prune
+    }
+  }
+  const nextVersion = versions.length + 1; // monotonically increasing — keeps audit log clean
 
   const created = await sgFetch<{ id: string }>(`/templates/${templateId}/versions`, {
     method: "POST",

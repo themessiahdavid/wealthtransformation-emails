@@ -20,6 +20,9 @@ import { logger } from "../log.js";
 import { getPool } from "../db/pool.js";
 import { enqueue } from "../email/outbox.js";
 import { lookup } from "../iat/lookup.js";
+import { tier as tierMeta, targetTierForDrip, activateUrlForTier } from "../tiers.js";
+import { config } from "../config.js";
+import { issueToken } from "../api/preference-token.js";
 
 const STEP_DAYS_FROM_ENROLL = [0, 2, 4, 7, 11, 16, 21];
 
@@ -130,6 +133,39 @@ export async function tickFire(): Promise<{ fired: number; cancelled: number }> 
       continue;
     }
 
+    // Build the variable hash SendGrid substitutes at send time. Drip emails
+    // need every variable any drip step references — populated per the target
+    // tier so {{activateUrl}}, {{tierName}}, {{tierProductPrice}} all route
+    // and render correctly.
+    const targetTier = targetTierForDrip(row.drip_type);
+    const tInfo = targetTier ? tierMeta(targetTier) : undefined;
+    const prefToken = issueToken(row.subscriber_id);
+    const prefUrl = `${config.publicBaseUrl}/email-preferences?token=${encodeURIComponent(prefToken)}`;
+    const unsubUrl = `${config.publicBaseUrl}/email-unsubscribe?token=${encodeURIComponent(prefToken)}`;
+    const pauseUrl = `${config.publicBaseUrl}/email-pause?token=${encodeURIComponent(prefToken)}`;
+    const basescanWalletUrl =
+      config.chain === "BASE_MAINNET"
+        ? `https://basescan.org/address/${row.wallet_address}`
+        : `https://sepolia.basescan.org/address/${row.wallet_address}`;
+    const vars = {
+      firstName: "", // wt_email_subscribers.display_name; query separately if needed
+      activateUrl: targetTier ? activateUrlForTier(targetTier) : config.publicBaseUrl,
+      walletShort: `${row.wallet_address.slice(0, 6)}…${row.wallet_address.slice(-4)}`,
+      basescanWalletUrl,
+      preferenceCenterUrl: prefUrl,
+      unsubscribeUrl: unsubUrl,
+      pauseUrl,
+      tier: tInfo?.tier ?? "",
+      tierName: tInfo?.productName ?? "",
+      tierProductPrice: tInfo?.productPriceUsd ?? "",
+      tierTotalPrice: tInfo?.totalUsd ?? "",
+      tierAdminFee: tInfo?.adminFeeUsd ?? "",
+      currentTier: targetTier ? targetTier - 1 : "",
+      nextTier: targetTier ?? "",
+      dripType: row.drip_type,
+      step: row.current_step,
+    };
+
     const subject = `Step ${row.current_step + 1}: ${row.drip_type.replace(/_/g, " ")}`;
     const idempotencyKey = `drip-${row.subscriber_id}-${row.drip_type}-${row.current_step}`;
     await enqueue({
@@ -139,10 +175,7 @@ export async function tickFire(): Promise<{ fired: number; cancelled: number }> 
       recipientEmail: row.email,
       recipientWallet: row.wallet_address,
       subject,
-      vars: {
-        dripType: row.drip_type,
-        step: row.current_step,
-      },
+      vars,
       idempotencyKey,
       triggeredBy: "drip_cron",
       context: {

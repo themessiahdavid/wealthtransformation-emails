@@ -21,6 +21,7 @@
 
 import type { EmailBlock, SlotInBlock } from "../ingest/parse-md.js";
 import { config } from "../config.js";
+import { tier as tierMeta, targetTierForDrip } from "../tiers.js";
 
 interface Tokens {
   bg: string;
@@ -92,6 +93,39 @@ function goldRuleHtml(): string {
   `;
 }
 
+// Cream "lightbox" panel that sits beneath every CTA selling a tier. CODE-
+// compliant copy: states the mechanism (100% on-chain commissions), the
+// concrete benefit (one sale = product price back instantly), and the
+// reseller admin fee as the optional trade-off (pay it = earn from
+// referrals, skip it = own the product but no earn rights).
+//
+// Tier-specific when we know the target tier (drips), generic otherwise.
+// Falls back to {{tierName}} / {{tierProductPrice}} / {{tierAdminFee}}
+// Handlebars vars when called for a non-drip context.
+function commissionsCalloutHtml(targetTier: number | null): string {
+  const tInfo = targetTier ? tierMeta(targetTier) : null;
+  const productName = tInfo?.productName ?? "{{tierName}}";
+  const productPrice = tInfo ? `$${tInfo.productPriceUsd}` : "${{tierProductPrice}}";
+  const adminFee = tInfo ? `$${tInfo.adminFeeUsd}` : "${{tierAdminFee}}";
+  const total = tInfo ? `$${tInfo.totalUsd}` : "${{tierTotalPrice}}";
+
+  return `
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:1.6em auto 0;width:100%;max-width:520px;">
+      <tr>
+        <td bgcolor="${T.creamSoft}" style="background:${T.creamSoft};border:1px solid ${T.goldDim};border-radius:4px;padding:18px 22px;">
+          <div style="font:600 10px/1 'Trajan Pro','Cormorant Garamond',Georgia,serif;letter-spacing:0.22em;text-transform:uppercase;color:${T.goldDim};margin-bottom:10px;">100% commissions · on-chain</div>
+          <p style="margin:0 0 8px;font:400 14px/1.55 'Iowan Old Style',Georgia,serif;color:${T.ink};">
+            Every sale of <strong>${productName}</strong> pays <strong>${productPrice}</strong> instantly to the seller&rsquo;s wallet on the same on-chain transaction that delivers the product. One referred sale through your link pays back your ${productPrice} in seconds &mdash; no payout cycle, no chargeback, no clawback.
+          </p>
+          <p style="margin:0;font:400 13px/1.55 'Iowan Old Style',Georgia,serif;color:${T.ink};opacity:.78;">
+            The optional <strong>10% reseller admin fee</strong> (${adminFee} &mdash; total ${total}) keeps the contract running and grants you reseller rights at this rung. Without it, you own the product but don&rsquo;t earn from referrals at this tier.
+          </p>
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
 // Brand assets hosted on a public-read S3 bucket. Persistent, HTTPS,
 // content-type set to image/png with 24h cache headers. Updated by:
 //   aws s3 sync ~/wealthtransformation-app/public/brand/logos \
@@ -156,25 +190,31 @@ function findSlotIn(
 
 // Substitute {{variables}} in a string with a sample value when rendering for
 // preview. At runtime SendGrid does this; for our local preview we fake it.
-function previewSubstitute(template: string): string {
+// `targetTier` tells us which tier this preview is for — drives tierName,
+// activateUrl, prices etc. so the preview matches what the real recipient will
+// see for that drip.
+function previewSubstitute(template: string, targetTier: number | null): string {
+  const t = targetTier ? tierMeta(targetTier) : null;
   const sample: Record<string, string> = {
     firstName: "David",
     sponsorName: "Alice",
     walletShort: "0x35491f…7B43A",
-    tierName: "The Short That Pays",
-    tierProductPrice: "3",
-    tierTotalPrice: "3.30",
-    currentTier: "Tier 1",
-    nextTier: "Tier 2",
-    activateUrl: `${config.publicBaseUrl}/tier/1`,
-    basescanWalletUrl: "https://sepolia.basescan.org/address/0x35491f6661b843C130F43CeA61F507839227B43A",
+    tierName: t?.productName ?? "The Short That Pays",
+    tierProductPrice: t ? String(t.productPriceUsd) : "3",
+    tierTotalPrice: t ? String(t.totalUsd) : "3.30",
+    tierAdminFee: t ? String(t.adminFeeUsd) : "0.30",
+    currentTier: targetTier ? String(targetTier - 1) : "0",
+    nextTier: targetTier ? String(targetTier) : "1",
+    activateUrl: `${config.publicBaseUrl}/tier/${targetTier ?? 1}`,
+    basescanWalletUrl:
+      "https://sepolia.basescan.org/address/0x35491f6661b843C130F43CeA61F507839227B43A",
     basescanUrl: "https://sepolia.basescan.org/tx/0xabc",
     lostAmountThisQuarter: "126",
     downlineSize: "7",
     downlineDeepBuyers: "2",
     buyerName: "Carol",
     buyerWalletShort: "0x82FFb3…237E06",
-    amount: "9",
+    amount: t ? String(t.productPriceUsd) : "3",
     counterAt: "3",
     preferenceCenterUrl: `${config.publicBaseUrl}/email-preferences?token=PREVIEW`,
     unsubscribeUrl: `${config.publicBaseUrl}/email-unsubscribe?token=PREVIEW`,
@@ -233,8 +273,18 @@ export function renderEmail(
 
   // Add primary CTA button if present.
   let ctaHtml = "";
+  let calloutHtml = "";
   if (email.primaryCtaText && email.primaryCtaUrl && !email.primaryCtaText.startsWith("(none")) {
     ctaHtml = buttonHtml(email.primaryCtaText, email.primaryCtaUrl);
+    // Commissions callout fires only when the CTA is a tier-purchase URL —
+    // detected by either {{activateUrl}} or a literal /tier/ path. Skips for
+    // basescan / preference-center / mailto reply-to CTAs.
+    const isTierCta =
+      email.primaryCtaUrl.includes("activateUrl") || email.primaryCtaUrl.includes("/tier/");
+    if (isTierCta) {
+      const targetTier = targetTierForDrip(email.emailType);
+      calloutHtml = commissionsCalloutHtml(targetTier);
+    }
   }
 
   const innerRaw = `
@@ -242,14 +292,18 @@ export function renderEmail(
       <td bgcolor="${T.cream}" style="background:${T.cream};padding:48px 40px 24px;">
         ${bodyHtml}
         ${ctaHtml}
+        ${calloutHtml}
         ${goldRuleHtml()}
         ${psHtml}
       </td>
     </tr>
   `;
 
-  const subject = previewMode ? previewSubstitute(email.subject) : email.subject;
-  const preheader = previewMode ? previewSubstitute(email.preheader ?? "") : email.preheader ?? "";
+  const previewTier = targetTierForDrip(email.emailType);
+  const subject = previewMode ? previewSubstitute(email.subject, previewTier) : email.subject;
+  const preheader = previewMode
+    ? previewSubstitute(email.preheader ?? "", previewTier)
+    : email.preheader ?? "";
 
   // Hidden preheader hack — Gmail/Apple Mail show this as the snippet.
   const preheaderHtml = `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:${T.cream};">${preheader}</div>`;
@@ -285,7 +339,7 @@ ${preheaderHtml}
   // footer are demoed too. At runtime SendGrid substitutes everything at send
   // time so this preview pass only fires when previewMode=true.
   if (previewMode) {
-    html = previewSubstitute(html);
+    html = previewSubstitute(html, previewTier);
   }
 
   return html;
@@ -301,5 +355,6 @@ export function renderEmailText(email: EmailBlock, previewMode = true): string {
   if (email.ps) body += `\n\nP.S.\n${email.ps.replace(/<[^>]+>/g, "")}`;
   if (email.primaryCtaUrl) body += `\n\n→ ${email.primaryCtaText ?? "Activate"}: ${email.primaryCtaUrl}`;
   body += `\n\n—\nWealth Transformation\nTransformation IP Trust\n243 E 5th Ave #A62, Anchorage, AK 99501, USA\n\nPreferences: {{preferenceCenterUrl}}\nUnsubscribe: {{unsubscribeUrl}}\n`;
-  return previewMode ? previewSubstitute(body) : body;
+  const previewTier = targetTierForDrip(email.emailType);
+  return previewMode ? previewSubstitute(body, previewTier) : body;
 }
