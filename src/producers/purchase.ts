@@ -7,12 +7,35 @@
 // Idempotency is per (txHash, logIndex, type, recipient) so retries are safe.
 
 import { logger } from "../log.js";
-import { withTx } from "../db/pool.js";
+import { withTx, getPool } from "../db/pool.js";
 import { enqueue } from "../email/outbox.js";
 import { SkipWalker } from "../chain/skip-walker.js";
 import { lookup } from "../iat/lookup.js";
 import { upsertSubscriber, findByWallet } from "../subscribers/upsert.js";
 import { config } from "../config.js";
+
+// Slot-in paragraphs are versioned per (kind, tier) and stored in
+// wt_email_settings as a single JSONB blob (populated by the ingest CLI).
+// Cached for 60s to avoid hammering the DB on bulk processing.
+let slotInCache: { value: Record<string, { paragraphHtml: string }>; expiresAt: number } | null =
+  null;
+
+async function getSlotIn(
+  kind: "lost_commission_cta" | "earned_commission_celebration",
+  tier: number,
+): Promise<string> {
+  if (!slotInCache || slotInCache.expiresAt < Date.now()) {
+    const r = await getPool().query<{
+      value: Record<string, { paragraphHtml: string }>;
+    }>(`SELECT value FROM wt_email_settings WHERE key = 'slot_in_paragraphs' LIMIT 1`);
+    slotInCache = {
+      value: r.rows[0]?.value ?? {},
+      expiresAt: Date.now() + 60_000,
+    };
+  }
+  const key = `${kind}:t${tier}`;
+  return slotInCache.value[key]?.paragraphHtml ?? "";
+}
 
 // Tier name lookup — keep in sync with src/lib/contract.ts on the WT app side.
 const TIER_NAMES: Record<number, string> = {
@@ -166,6 +189,11 @@ export async function processPurchasedEvent(
           isPassup: report?.isPassup ?? event.isPassup,
           basescanUrl: basescanTxUrl(event.txHash),
           occurredAt: event.occurredAt.toISOString(),
+          // Per-tier slot-in paragraph the wrapper template renders via
+          // {{{celebrationParagraph}}}. Empty string if no slot-in exists
+          // for this tier — wrapper still renders, just without the
+          // tier-specific celebration block.
+          celebrationParagraph: await getSlotIn("earned_commission_celebration", event.tier),
         },
         idempotencyKey: `${idemBase}-earned-${finalRecipient}`,
         triggeredBy: "indexer_event",
@@ -209,6 +237,9 @@ export async function processPurchasedEvent(
           activateUrl: `${config.publicBaseUrl}/tier/${event.tier}`,
           basescanUrl: basescanTxUrl(event.txHash),
           reason: skip.reason,
+          // Per-tier slot-in CTA paragraph rendered via {{{ctaParagraph}}}
+          // in the lost_commission wrapper template.
+          ctaParagraph: await getSlotIn("lost_commission_cta", event.tier),
         },
         idempotencyKey: `${idemBase}-lost-${skip.address}`,
         triggeredBy: "indexer_event",
