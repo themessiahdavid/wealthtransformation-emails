@@ -177,7 +177,7 @@ function commissionsCalloutHtml(targetTier: number | null): string {
 // (Picked S3 over GitHub raw URLs because the wt-app repo is private and
 // raw.githubusercontent.com 404s without an auth token for private repos.)
 const ASSETS_BASE =
-  "https://wt-brand-assets-534312620594.s3.amazonaws.com/brand";
+  "https://brand.wealthtransformation.com/brand";
 
 function headerHtml(): string {
   return `
